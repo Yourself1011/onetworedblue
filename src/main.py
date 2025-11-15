@@ -6,6 +6,8 @@ import time
 # Write code here that runs once
 # Can do things like load models from huggingface, make connections to subprocesses, etcwenis
 
+def searchMove(alpha, beta):
+
 
 @chess_manager.entrypoint
 def test_func(ctx: GameContext):
