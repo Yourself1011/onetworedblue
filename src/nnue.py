@@ -73,7 +73,7 @@ def load():
     return w1, b1, w2, b2, optim
 
 
-@app.function(**config)
+@app.function(**config, timeout=24 * 60 * 60)
 def train():
     dataset = loadDb()
     WEIGHTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -85,8 +85,8 @@ def train():
         w2.uniform_(-0.001, 0.001)
 
     totalLoss = 0
-    n = 1000
-    for i in range(50000):
+    n = 5000
+    for i in range(1000000):
         optim.zero_grad()
         if not i % n:
             save(w1, b1, w2, b2, optim)
