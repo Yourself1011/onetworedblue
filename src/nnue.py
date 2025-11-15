@@ -4,11 +4,11 @@ app = modal.App("onetworedblue")
 
 image = modal.Image.debian_slim(  # define dependencies
     python_version="3.11"
-).pip_install("torch==2.5.1", "numpy==2.1.3")
+).pip_install("torch==2.5.1", "numpy==2.1.3", "datasets")
 
 with image.imports():  # set up common imports
     import torch
-    from torch import int32
+    from .parseevaluations import fen_to_tensor, getData, loadDb
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -43,6 +43,7 @@ def feedforward(
 
 @app.function(**config)
 def train():
+    dataset = loadDb()
     HIDDEN_WIDTH = 1024
     w1 = torch.empty((12 * 64, HIDDEN_WIDTH), requires_grad=True, device=device)
     b1 = torch.zeros(HIDDEN_WIDTH, requires_grad=True, device=device)
@@ -56,12 +57,16 @@ def train():
 
     optim = torch.optim.AdamW([w1, b1, w2, b2])
 
-    for i in range(1000):
+    for i in range(10000):
         optim.zero_grad()
         if not i % 1000:
             print(i)
+
+        evaluation = getData(dataset)
+        board = fen_to_tensor(evaluation["fen"], device)
+
         output = feedforward(board, w1, b1, w2, b2)
-        loss = (1 - output) ** 2
+        loss = (evaluation["cp"] - output) ** 2
         loss.backward()
         optim.step()
 
