@@ -30,7 +30,7 @@ def feedforward(
             torch.concat(
                 (
                     torch.flatten(board) @ w1 + b1,
-                    torch.flatten(torch.flip(board, (0, 1))) @ w1 + b1,
+                    torch.flatten(torch.flip(board, [1])) @ w1 + b1,
                 )
             ),
             0,
