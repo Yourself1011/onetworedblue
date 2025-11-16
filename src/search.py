@@ -19,8 +19,8 @@ def alpha_beta(
     evaluate_fn: Callable[[Board], float],
 ) -> float:
     if current_depth == 0:
-        return evaluate_fn(board_instance)
-
+        return quiescence_search(board_instance, alpha, beta, evaluate_fn)
+    
     if board_instance.is_checkmate():
         return -10000.0 if board_instance.turn == chess.WHITE else 10000.0
 
@@ -108,6 +108,59 @@ def alpha_beta_search(
 
     return best_move, best_score
 
+
+def quiescence_search(
+    board: Board,
+    alpha: float,
+    beta: float,
+    evaluate_fn: Callable[[Board], float]
+) -> float:
+    stand_pat = evaluate_fn(board)
+    
+    if board.turn == chess.WHITE:
+        if stand_pat >= beta:
+            return stand_pat
+        if stand_pat > alpha:
+            alpha = stand_pat
+        
+        best_value = stand_pat
+        
+        for move in board.generate_legal_moves():
+            if board.is_capture(move):
+                board.push(move)
+                score_after_capture = quiescence_search(board, alpha, beta, evaluate_fn)
+                board.pop()
+                
+                if score_after_capture >= beta:
+                    return score_after_capture
+                if score_after_capture > best_value:
+                    best_value = score_after_capture
+                if score_after_capture > alpha:
+                    alpha = score_after_capture
+        
+        return best_value
+    else:
+        if stand_pat <= alpha:
+            return stand_pat
+        if stand_pat < beta:
+            beta = stand_pat
+        
+        best_value = stand_pat
+        
+        for move in board.generate_legal_moves():
+            if board.is_capture(move):
+                board.push(move)
+                score_after_capture = quiescence_search(board, alpha, beta, evaluate_fn)
+                board.pop()
+                
+                if score_after_capture <= alpha:
+                    return score_after_capture
+                if score_after_capture < best_value:
+                    best_value = score_after_capture
+                if score_after_capture < beta:
+                    beta = score_after_capture
+        
+        return best_value
 
 def simple_evaluation(board: Board) -> float:
     if board.is_checkmate():
