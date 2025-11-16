@@ -93,7 +93,7 @@ def load(path=WEIGHTS_DIR / "save.pth"):
         b1 = obj["b1"].to(device).detach().clone().requires_grad_(True)
         w2 = obj["w2"].to(device).detach().clone().requires_grad_(True)
         b2 = obj["b2"].to(device).detach().clone().requires_grad_(True)
-        optim = torch.optim.AdamW([w1, b1, w2, b2], lr=1e-4, weight_decay=1e-5)
+        optim = torch.optim.AdamW([w1, b1, w2, b2], lr=1e-4)
         optim.load_state_dict(obj["optim"])
 
     except Exception as e:
@@ -105,7 +105,7 @@ def load(path=WEIGHTS_DIR / "save.pth"):
         b1 = torch.zeros(HIDDEN_WIDTH, requires_grad=True, device=device)
         w2 = torch.empty((HIDDEN_WIDTH * 2, 1), requires_grad=True, device=device)
         b2 = torch.zeros(1, requires_grad=True, device=device)
-        optim = torch.optim.AdamW([w1, b1, w2, b2], lr=1e-4, weight_decay=1e-5)
+        optim = torch.optim.AdamW([w1, b1, w2, b2], lr=1e-4)
 
         with torch.no_grad():
             torch.nn.init.xavier_uniform_(w1)
@@ -149,7 +149,8 @@ async def train():
     #     ]
     # )
     getBoardsTask = asyncio.create_task(getBoards(batchSize, dataset))
-    for i in range(1000000):
+    i = 0
+    while True:
         optim.zero_grad()
 
         await getBoardsTask
@@ -158,10 +159,7 @@ async def train():
 
         outputs = feedforward(boards, w1, b1, w2, b2)
         targets = torch.tensor(
-            [
-                min(max(evaluations[i]["cp"] / 1000, -1000), 1000)
-                for i in range(batchSize)
-            ],
+            [min(max(evaluations[i]["cp"] / 1000, -1), 1) for i in range(batchSize)],
             dtype=torch.float32,
             device=device,
         ).view(batchSize, 1)
@@ -181,6 +179,7 @@ async def train():
             # print(targets.max().item(), targets.min().item())
             # print(outputs.max().item(), outputs.min().item())
             totalLoss = 0
+        i += 1
 
     output = feedforward(board, w1, b1, w2, b2)
     print(output)

@@ -26,6 +26,8 @@ def alpha_beta(
     alpha: float,
     beta: float,
     evaluate_fn: Callable[[Board], float],
+    startTime,
+    timeLimit,
 ) -> float:
     # global skips, totalSteps, nnCalls, nnTime
     # totalSteps += 1
@@ -47,13 +49,23 @@ def alpha_beta(
     ):
         return 0.0
 
+    if time() - startTime > timeLimit:
+        return 0
+
     if board_instance.turn == chess.WHITE:
         best_score = float("-inf")
 
         for legal_move in board_instance.generate_legal_moves():
             board_instance.push(legal_move)
             node_score = alpha_beta(
-                board_instance, max_depth, current_depth - 1, alpha, beta, evaluate_fn
+                board_instance,
+                max_depth,
+                current_depth - 1,
+                alpha,
+                beta,
+                evaluate_fn,
+                startTime,
+                timeLimit,
             )
             board_instance.pop()
             best_score = max(best_score, node_score)
@@ -70,7 +82,14 @@ def alpha_beta(
         for legal_move in board_instance.generate_legal_moves():
             board_instance.push(legal_move)
             node_score = alpha_beta(
-                board_instance, max_depth, current_depth - 1, alpha, beta, evaluate_fn
+                board_instance,
+                max_depth,
+                current_depth - 1,
+                alpha,
+                beta,
+                evaluate_fn,
+                startTime,
+                timeLimit,
             )
             board_instance.pop()
             best_score = min(best_score, node_score)
@@ -84,7 +103,12 @@ def alpha_beta(
 
 
 def alpha_beta_search(
-    board: Board, max_depth: int, evaluate_fn: Callable[[Board], float]
+    board: Board,
+    max_depth: int,
+    evaluate_fn: Callable[[Board], float],
+    previousBest: chess.Move | None,
+    startTime,
+    timeLimit,
 ) -> Tuple[chess.Move, float]:
     if max_depth == 0:
         return None, evaluate_fn(board)
@@ -98,12 +122,27 @@ def alpha_beta_search(
     alpha = float("-inf")
     beta = float("inf")
 
+    if previousBest:
+        for i in range(len(legal_moves)):
+            if previousBest.uci() == legal_moves[i].uci():
+                legal_moves[0], legal_moves[i] = legal_moves[i], legal_moves[0]
+                break
+
     for move in legal_moves:
         board.push(move)
 
         eval_score = alpha_beta(
-            board, max_depth, max_depth - 1, alpha, beta, evaluate_fn
+            board,
+            max_depth,
+            max_depth - 1,
+            alpha,
+            beta,
+            evaluate_fn,
+            startTime,
+            timeLimit,
         )
+        if time() - startTime > timeLimit:
+            return None, 0
 
         board.pop()
 
@@ -125,6 +164,31 @@ def alpha_beta_search(
 
     # print(skips, nnCalls, nnTime, totalSteps)
     return best_move, best_score
+
+
+def iterativeDeepening(
+    board: Board,
+    max_depth: int,
+    evaluate_fn: Callable[[Board], float],
+    timeLimit: float,
+) -> Tuple[chess.Move, float]:
+    bestMove = None
+    bestScore = 0
+
+    start = time()
+    for i in range(1, max_depth + 1):
+        move, score = alpha_beta_search(
+            board, i, evaluate_fn, bestMove, start, timeLimit
+        )
+
+        if time() - start > timeLimit:
+            print("depth", i, "t", time() - start)
+            break
+
+        bestMove = move
+        bestScore = score
+
+    return bestMove, bestScore
 
 
 def quiescence_search(
@@ -262,8 +326,8 @@ if __name__ == "__main__":
     print(f"Turn: {'White' if board.turn == chess.WHITE else 'Black'}")
     print(f"Legal moves: {len(list(board.generate_legal_moves()))}\n")
 
-    best_move, best_score = alpha_beta_search(
-        board, max_depth=4, evaluate_fn=nnueEvaluation
+    best_move, best_score = iterativeDeepening(
+        board, max_depth=4, evaluate_fn=nnueEvaluation, timeLimit=1
     )
 
     print(f"Best move: {best_move}")

@@ -1,8 +1,7 @@
-from src.search import alpha_beta_search, nnueEvaluation
+from src.search import iterativeDeepening, nnueEvaluation
 from .utils import chess_manager, GameContext
 from chess import Move
 import random
-import time
 
 # Write code here that runs once
 # Can do things like load models from huggingface, make connections to subprocesses, etcwenis
@@ -31,8 +30,8 @@ def test_func(ctx: GameContext):
     # }
     # ctx.logProbabilities(move_probs)
 
-    best_move, best_score = alpha_beta_search(
-        ctx.board, max_depth=4, evaluate_fn=nnueEvaluation
+    best_move, best_score = iterativeDeepening(
+        ctx.board, max_depth=4, evaluate_fn=nnueEvaluation, timeLimit=1.5
     )
     return best_move
 
