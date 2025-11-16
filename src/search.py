@@ -235,9 +235,12 @@ def iterativeDeepening(
 ) -> Tuple[chess.Move, float]:
     bestMove = chess.Move.null()
     bestScore = 0
-
     start = time()
-    for i in range(1, max_depth + 1):
+    bestMove, bestScore = alpha_beta_search(
+        board, 1, evaluate_fn, bestMove, start, 99999999
+    )
+
+    for i in range(2, max_depth + 1):
         move, score = alpha_beta_search(
             board, i, evaluate_fn, bestMove, start, timeLimit
         )
