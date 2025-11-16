@@ -145,13 +145,13 @@ def alpha_beta_search(
     timeLimit,
 ) -> Tuple[chess.Move, float]:
     if max_depth == 0:
-        return None, evaluate_fn(board)
+        return chess.Move.null(), evaluate_fn(board)
 
     legal_moves = list(board.generate_legal_moves())
     if not legal_moves:
-        return None, evaluate_fn(board)
+        return chess.Move.null(), evaluate_fn(board)
 
-    best_move = None
+    best_move = chess.Move.null()
     best_score = float("-inf") if board.turn == chess.WHITE else float("inf")
     alpha = float("-inf")
     beta = float("inf")
@@ -202,7 +202,7 @@ def alpha_beta_search(
             timeLimit,
         )
         if time() - startTime > timeLimit:
-            return None, 0
+            return chess.Move.null(), 0
 
         board.pop()
 
@@ -232,7 +232,7 @@ def iterativeDeepening(
     evaluate_fn: Callable[[Board], float],
     timeLimit: float,
 ) -> Tuple[chess.Move, float]:
-    bestMove = None
+    bestMove = chess.Move.null()
     bestScore = 0
 
     start = time()
