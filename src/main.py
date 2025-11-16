@@ -31,7 +31,10 @@ def test_func(ctx: GameContext):
     # ctx.logProbabilities(move_probs)
 
     best_move, best_score = iterativeDeepening(
-        ctx.board, max_depth=4, evaluate_fn=nnueEvaluation, timeLimit=1.5
+        ctx.board,
+        max_depth=4,
+        evaluate_fn=nnueEvaluation,
+        timeLimit=ctx.timeLeft / 1000 / 40,
     )
     return best_move
 
