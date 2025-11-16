@@ -246,14 +246,14 @@ def iterativeDeepening(
         )
 
         if time() - start > timeLimit:
-            print("depth", i - 1, "t", time() - start)
+            print("depth", i - 1, "t", time() - start, "move", bestMove)
             break
 
         bestMove = move
         bestScore = score
 
         if time() - start > softLimit:
-            print("depth", i, "t", time() - start)
+            print("depth", i, "t", time() - start, "move", bestMove)
             break
 
     return bestMove, bestScore
