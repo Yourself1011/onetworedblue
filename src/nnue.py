@@ -51,30 +51,35 @@ def feedforward(
 
 def save(w1, b1, w2, b2, optim):
     obj = {
-        "weights": {"w1": w1, "b1": b1, "w2": w2, "b2": b2},
+        "w1": w1.detach().cpu(),
+        "b1": b1.detach().cpu(),
+        "w2": w2.detach().cpu(),
+        "b2": b2.detach().cpu(),
         "optim": optim.state_dict(),
     }
-    torch.save(obj, WEIGHTS_DIR / "save.pth")
+    torch.save(obj, WEIGHTS_DIR / "savetmp.pth")
+    (WEIGHTS_DIR / "savetmp.pth").rename(WEIGHTS_DIR / "save.pth")
 
 
 def load():
     try:
         # raise Exception
-        obj = torch.load(WEIGHTS_DIR / "save.pth")
-        w1 = obj["weights"]["w1"]
-        b1 = obj["weights"]["b1"]
-        w2 = obj["weights"]["w2"]
-        b2 = obj["weights"]["b2"]
-        optim = torch.optim.AdamW([w1, b1, w2, b2], lr=1e-4, weight_decay=1e-5)
+        obj = torch.load(WEIGHTS_DIR / "save.pth", map_location=device)
+        w1 = obj["w1"].to(device).detach().clone().requires_grad_(True)
+        b1 = obj["b1"].to(device).detach().clone().requires_grad_(True)
+        w2 = obj["w2"].to(device).detach().clone().requires_grad_(True)
+        b2 = obj["b2"].to(device).detach().clone().requires_grad_(True)
+        optim = torch.optim.AdamW([w1, b1, w2, b2], lr=1e-3, weight_decay=1e-5)
         optim.load_state_dict(obj["optim"])
     except Exception as e:
-        print("there was an error:", e)
+        print("there was an error:")
+        print(e)
         HIDDEN_WIDTH = 1024
         w1 = torch.empty((12 * 64, HIDDEN_WIDTH), requires_grad=True, device=device)
         b1 = torch.zeros(HIDDEN_WIDTH, requires_grad=True, device=device)
         w2 = torch.empty((HIDDEN_WIDTH * 2, 1), requires_grad=True, device=device)
         b2 = torch.zeros(1, requires_grad=True, device=device)
-        optim = torch.optim.AdamW([w1, b1, w2, b2], lr=1e-4, weight_decay=1e-5)
+        optim = torch.optim.AdamW([w1, b1, w2, b2], lr=1e-3, weight_decay=1e-5)
 
         with torch.no_grad():
             torch.nn.init.xavier_uniform_(w1)
@@ -87,12 +92,27 @@ def train():
     dataset = loadDb()
     WEIGHTS_DIR.mkdir(parents=True, exist_ok=True)
     w1, b1, w2, b2, optim = load()
+
     board = torch.randint(0, 2, (12, 8, 8), dtype=torch.float32, device=device)
 
     # print((torch.flatten(board) @ w1 + b1).max())
     totalLoss = 0
     n = 64
     batchSize = 64
+
+    # torch.manual_seed(0)
+    # boards = torch.stack(
+    #     [
+    #         torch.randint(
+    #             0,
+    #             2,
+    #             (12, 8, 8),
+    #             dtype=torch.float32,
+    #             device=device,
+    #         )
+    #         for _ in range(batchSize)
+    #     ]
+    # )
     for i in range(1000000):
         optim.zero_grad()
 
@@ -107,6 +127,11 @@ def train():
             dtype=torch.float32,
             device=device,
         ).view(batchSize, 1)
+        # targets = torch.tensor(
+        #     [i for i in range(batchSize)],
+        #     dtype=torch.float32,
+        #     device=device,
+        # ).view(batchSize, 1)
         loss = torch.mean((targets - outputs) ** 2)
         totalLoss += loss.item()
         loss.backward()
