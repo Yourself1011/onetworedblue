@@ -8,11 +8,12 @@ app = modal.App("onetworedblue")
 
 image = modal.Image.debian_slim(  # define dependencies
     python_version="3.11"
-).pip_install("torch==2.5.1", "numpy==2.1.3", "datasets")
+).pip_install("torch==2.5.1", "numpy==2.1.3", "datasets", "asyncio")
 
 with image.imports():  # set up common imports
     import torch
     import math
+    import asyncio
     from .parseevaluations import fen_to_tensor, getData, loadDb
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -49,6 +50,29 @@ def feedforward(
     )
 
 
+def feedforwardIntermediate(
+    board,
+    w1,
+    b1,
+    w2,
+    b2,
+):
+    batchSize = board.size(0)
+    intermediate = torch.concat(
+        (
+            torch.reshape(board, (batchSize, -1)) @ w1 + b1,
+            torch.reshape(torch.flip(board, [2, 3]), (batchSize, -1)) @ w1 + b1,
+        ),
+        dim=1,
+    )
+
+    return intermediate, torch.clamp(
+        intermediate,
+        0,
+        1,
+    ) ** 2 @ w2 + b2
+
+
 def save(w1, b1, w2, b2, optim):
     obj = {
         "w1": w1.detach().cpu(),
@@ -61,25 +85,27 @@ def save(w1, b1, w2, b2, optim):
     (WEIGHTS_DIR / "savetmp.pth").rename(WEIGHTS_DIR / "save.pth")
 
 
-def load():
+def load(path=WEIGHTS_DIR / "save.pth"):
     try:
         # raise Exception
-        obj = torch.load(WEIGHTS_DIR / "save.pth", map_location=device)
+        obj = torch.load(path, map_location=device)
         w1 = obj["w1"].to(device).detach().clone().requires_grad_(True)
         b1 = obj["b1"].to(device).detach().clone().requires_grad_(True)
         w2 = obj["w2"].to(device).detach().clone().requires_grad_(True)
         b2 = obj["b2"].to(device).detach().clone().requires_grad_(True)
-        optim = torch.optim.AdamW([w1, b1, w2, b2], lr=1e-3, weight_decay=1e-5)
+        optim = torch.optim.AdamW([w1, b1, w2, b2], lr=1e-4, weight_decay=1e-5)
         optim.load_state_dict(obj["optim"])
+
     except Exception as e:
         print("there was an error:")
         print(e)
+        print(path.absolute())
         HIDDEN_WIDTH = 1024
         w1 = torch.empty((12 * 64, HIDDEN_WIDTH), requires_grad=True, device=device)
         b1 = torch.zeros(HIDDEN_WIDTH, requires_grad=True, device=device)
         w2 = torch.empty((HIDDEN_WIDTH * 2, 1), requires_grad=True, device=device)
         b2 = torch.zeros(1, requires_grad=True, device=device)
-        optim = torch.optim.AdamW([w1, b1, w2, b2], lr=1e-3, weight_decay=1e-5)
+        optim = torch.optim.AdamW([w1, b1, w2, b2], lr=1e-4, weight_decay=1e-5)
 
         with torch.no_grad():
             torch.nn.init.xavier_uniform_(w1)
@@ -87,8 +113,17 @@ def load():
     return w1, b1, w2, b2, optim
 
 
+async def getBoards(batchSize, dataset):
+    evaluations = [getData(dataset) for _ in range(batchSize)]
+    boards = torch.stack(
+        [fen_to_tensor(evaluations[i]["fen"], device) for i in range(batchSize)]
+    )
+
+    return evaluations, boards
+
+
 @app.function(**config, timeout=24 * 60 * 60)
-def train():
+async def train():
     dataset = loadDb()
     WEIGHTS_DIR.mkdir(parents=True, exist_ok=True)
     w1, b1, w2, b2, optim = load()
@@ -113,17 +148,20 @@ def train():
     #         for _ in range(batchSize)
     #     ]
     # )
+    getBoardsTask = asyncio.create_task(getBoards(batchSize, dataset))
     for i in range(1000000):
         optim.zero_grad()
 
-        evaluations = [getData(dataset) for _ in range(batchSize)]
-        boards = torch.stack(
-            [fen_to_tensor(evaluations[i]["fen"], device) for i in range(batchSize)]
-        )
+        await getBoardsTask
+        evaluations, boards = getBoardsTask.result()
+        getBoardsTask = asyncio.create_task(getBoards(batchSize, dataset))
 
         outputs = feedforward(boards, w1, b1, w2, b2)
         targets = torch.tensor(
-            [math.atan(evaluations[i]["cp"] / 300) for i in range(batchSize)],
+            [
+                min(max(evaluations[i]["cp"] / 1000, -1000), 1000)
+                for i in range(batchSize)
+            ],
             dtype=torch.float32,
             device=device,
         ).view(batchSize, 1)
