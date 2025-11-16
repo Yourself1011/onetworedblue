@@ -16,6 +16,8 @@ from src.parseevaluations import fen_to_tensor
 # nnCalls = 0
 # nnTime = 0
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 def alpha_beta(
     board_instance: Board,
@@ -216,7 +218,7 @@ def nnueEvaluation(board):
     global lastAccumulator, lastInput
 
     if lastAccumulator is None or lastInput is None:
-        lastInput = fen_to_tensor(board.fen(), device="cpu").reshape(1, 12, 8, 8)
+        lastInput = fen_to_tensor(board.fen(), device=device).reshape(1, 12, 8, 8)
         lastAccumulator, evaluation = feedforwardIntermediate(
             lastInput,
             w1,
@@ -226,7 +228,7 @@ def nnueEvaluation(board):
         )
         return evaluation.item()
 
-    boardInput = fen_to_tensor(board.fen(), device="cpu").reshape(1, 12, 8, 8)
+    boardInput = fen_to_tensor(board.fen(), device=device).reshape(1, 12, 8, 8)
     diff = boardInput - lastInput
     lastAccumulator += torch.concat(
         (
