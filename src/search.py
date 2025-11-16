@@ -4,7 +4,6 @@ import chess
 from chess import Board
 import torch
 from time import time
-
 from src.nnue import feedforwardIntermediate, load
 from src.parseevaluations import fen_to_tensor
 
@@ -28,6 +27,13 @@ PIECE_VALUES = {
     chess.KING: 1000,
 }
 
+TT = {}
+
+# tt flags
+EXACT = 0
+LOWER_BOUND = 1
+UPPER_BOUND = 2
+
 
 def alpha_beta(
     board_instance: Board,
@@ -39,8 +45,23 @@ def alpha_beta(
     startTime,
     timeLimit,
 ) -> float:
+    global TT
     # global skips, totalSteps, nnCalls, nnTime
     # totalSteps += 1
+    
+    zobrist_key = board_instance._transposition_key()
+    
+    if zobrist_key in TT:
+        tt_entry = TT[zobrist_key]
+        # Only use TT entry if depth is sufficient
+        if tt_entry[1] >= current_depth:  # depth
+            if tt_entry[2] == EXACT:  # flag
+                return tt_entry[0]  # value
+            elif tt_entry[2] == LOWER_BOUND and tt_entry[0] >= beta:
+                return tt_entry[0]
+            elif tt_entry[2] == UPPER_BOUND and tt_entry[0] <= alpha:
+                return tt_entry[0]
+    
     if current_depth == 0:
         # start = time()
         # nnCalls += 1
@@ -69,6 +90,19 @@ def alpha_beta(
     legal_moves = list(board_instance.generate_legal_moves())
     sortedLegal = [chess.Move.null()] * len(legal_moves)
     idx = 0
+    
+    # tt for move ordering
+    tt_best_move = None
+    if zobrist_key in TT and TT[zobrist_key][3]:  # best_move
+        tt_best_move = TT[zobrist_key][3]  # best_move
+
+        for i in range(len(legal_moves)):
+            if legal_moves[i] and legal_moves[i] == tt_best_move:
+                sortedLegal[idx] = legal_moves[i]
+                legal_moves[i] = chess.Move.null()
+                idx += 1
+                break
+    
     for i in range(len(legal_moves)):
         if legal_moves[i] and board_instance.is_capture(legal_moves[i]):
             attacker = board_instance.piece_at(legal_moves[i].from_square)
@@ -90,6 +124,9 @@ def alpha_beta(
 
     legal_moves = sortedLegal
 
+    original_alpha = alpha
+    best_move = None
+    
     if board_instance.turn == chess.WHITE:
         best_score = float("-inf")
 
@@ -106,13 +143,26 @@ def alpha_beta(
                 timeLimit,
             )
             board_instance.pop()
-            best_score = max(best_score, node_score)
+            
+            if node_score > best_score:
+                best_score = node_score
+                best_move = legal_move
             alpha = max(alpha, best_score)
 
             if beta <= alpha:
                 # skips += 1
+                TT[zobrist_key] = (best_score, current_depth, LOWER_BOUND, best_move)
                 return best_score
 
+        if best_score <= original_alpha:
+            tt_flag = UPPER_BOUND
+        elif best_score >= beta:
+            tt_flag = LOWER_BOUND
+        else:
+            tt_flag = EXACT
+        
+        TT[zobrist_key] = (best_score, current_depth, tt_flag, best_move)
+        
         return best_score
     else:
         best_score = float("inf")
@@ -130,13 +180,26 @@ def alpha_beta(
                 timeLimit,
             )
             board_instance.pop()
-            best_score = min(best_score, node_score)
+            
+            if node_score < best_score:
+                best_score = node_score
+                best_move = legal_move
             beta = min(beta, best_score)
 
             if beta <= alpha:
                 # skips += 1
+                TT[zobrist_key] = (best_score, current_depth, UPPER_BOUND, best_move)
                 return best_score
 
+        if best_score <= original_alpha:
+            tt_flag = UPPER_BOUND
+        elif best_score >= beta:
+            tt_flag = LOWER_BOUND
+        else:
+            tt_flag = EXACT
+        
+        TT[zobrist_key] = (best_score, current_depth, tt_flag, best_move)
+        
         return best_score
 
 
@@ -237,8 +300,11 @@ def iterativeDeepening(
     timeLimit: float,
     softLimit: float,
 ) -> Tuple[chess.Move, float]:
+    global TT
     bestMove = chess.Move.null()
     bestScore = 0
+    
+    TT = {}
     start = time()
     bestMove, bestScore = alpha_beta_search(
         board, 1, evaluate_fn, bestMove, start, 99999999
@@ -328,35 +394,6 @@ def quiescence_search(
                     beta = score_after_capture
 
         return best_value
-
-
-def simple_evaluation(board: Board) -> float:
-    if board.is_checkmate():
-        return -10000.0 if board.turn == chess.WHITE else 10000.0
-
-    if board.is_stalemate() or board.is_insufficient_material():
-        return 0.0
-
-    piece_values = {
-        chess.PAWN: 1,
-        chess.KNIGHT: 3,
-        chess.BISHOP: 3,
-        chess.ROOK: 5,
-        chess.QUEEN: 9,
-        chess.KING: 0,
-    }
-
-    score = 0.0
-    for square in chess.SQUARES:
-        piece = board.piece_at(square)
-        if piece:
-            value = piece_values[piece.piece_type]
-            if piece.color == chess.WHITE:
-                score += value
-            else:
-                score -= value
-
-    return score
 
 
 w1, b1, w2, b2, _ = load(path=Path("./src/weights/save.pth"))
