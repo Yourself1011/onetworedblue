@@ -44,7 +44,11 @@ def alpha_beta(
     if current_depth == 0:
         # start = time()
         # nnCalls += 1
-        result = quiescence_search(board_instance, alpha, beta, evaluate_fn)
+        result = quiescence_search(
+            board_instance, alpha, beta, evaluate_fn, startTime, timeLimit
+        )
+        if result is None:
+            return 0
         # nnTime += time() - start
         return result
 
@@ -246,22 +250,30 @@ def iterativeDeepening(
         )
 
         if time() - start > timeLimit:
-            print("depth", i - 1, "t", time() - start, "move", bestMove)
+            print("hard depth", i - 1, "t", time() - start, "move", bestMove)
             break
 
         bestMove = move
         bestScore = score
 
         if time() - start > softLimit:
-            print("depth", i, "t", time() - start, "move", bestMove)
+            print("soft depth", i, "t", time() - start, "move", bestMove)
             break
 
     return bestMove, bestScore
 
 
 def quiescence_search(
-    board: Board, alpha: float, beta: float, evaluate_fn: Callable[[Board], float]
-) -> float:
+    board: Board,
+    alpha: float,
+    beta: float,
+    evaluate_fn: Callable[[Board], float],
+    startTime,
+    timeLimit,
+) -> float | None:
+    if time() - startTime > timeLimit:
+        return None
+
     stand_pat = evaluate_fn(board)
 
     if board.turn == chess.WHITE:
@@ -275,8 +287,12 @@ def quiescence_search(
         for move in board.generate_legal_moves():
             if board.is_capture(move):
                 board.push(move)
-                score_after_capture = quiescence_search(board, alpha, beta, evaluate_fn)
+                score_after_capture = quiescence_search(
+                    board, alpha, beta, evaluate_fn, startTime, timeLimit
+                )
                 board.pop()
+                if score_after_capture is None:
+                    return None
 
                 if score_after_capture >= beta:
                     return score_after_capture
@@ -297,8 +313,12 @@ def quiescence_search(
         for move in board.generate_legal_moves():
             if board.is_capture(move):
                 board.push(move)
-                score_after_capture = quiescence_search(board, alpha, beta, evaluate_fn)
+                score_after_capture = quiescence_search(
+                    board, alpha, beta, evaluate_fn, startTime, timeLimit
+                )
                 board.pop()
+                if score_after_capture is None:
+                    return None
 
                 if score_after_capture <= alpha:
                     return score_after_capture
@@ -388,14 +408,20 @@ def nnueEvaluation(board):
 if __name__ == "__main__":
     print("=== Alpha-Beta Search ===")
 
-    board = Board("2r5/1B5Q/8/P5pN/1p1b3q/2r2P1P/K1Nk4/R7 w - - 2 2")
+    # board = Board("2r5/1B5Q/8/P5pN/1p1b3q/2r2P1P/K1Nk4/R7 w - - 2 2")
+    # board = Board(
+    #     "1r1qkb1r/1bppnpp1/p1n1p2p/1p2P3/1P1PB2P/P1N2N2/2P2PP1/R1BQR1K1 b k - 0 12"
+    # )
+    board = Board(
+        "r2qkb1r/pp3pp1/2n1pn1p/2pp1b2/3P3B/2N1P3/PPPN1PPP/R2QKB1R w KQkq - 1 8"
+    )
 
     print(f"Position FEN: {board.fen()}")
     print(f"Turn: {'White' if board.turn == chess.WHITE else 'Black'}")
     print(f"Legal moves: {len(list(board.generate_legal_moves()))}\n")
 
     best_move, best_score = iterativeDeepening(
-        board, max_depth=4, evaluate_fn=nnueEvaluation, timeLimit=1
+        board, max_depth=7, evaluate_fn=nnueEvaluation, timeLimit=10, softLimit=10
     )
 
     print(f"Best move: {best_move}")

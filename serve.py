@@ -43,7 +43,7 @@ async def get_move(request: Request):
         time_taken = (end_time - start_time) * 1000
     except Exception as e:
         time_taken = (time.perf_counter() - start_time) * 1000
-        print(e)
+        raise e
         return JSONResponse(
             content={
                 "move": None,
