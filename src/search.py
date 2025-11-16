@@ -7,6 +7,7 @@ from time import time
 
 from src.nnue import feedforwardIntermediate, load
 from src.parseevaluations import fen_to_tensor
+
 # from nnue import feedforwardIntermediate, load
 # from parseevaluations import fen_to_tensor
 
@@ -17,6 +18,15 @@ from src.parseevaluations import fen_to_tensor
 # nnTime = 0
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+PIECE_VALUES = {
+    chess.PAWN: 1,
+    chess.KNIGHT: 3,
+    chess.BISHOP: 3,
+    chess.ROOK: 5,
+    chess.QUEEN: 9,
+    chess.KING: 1000,
+}
 
 
 def alpha_beta(
@@ -52,10 +62,34 @@ def alpha_beta(
     if time() - startTime > timeLimit:
         return 0
 
+    legal_moves = list(board_instance.generate_legal_moves())
+    sortedLegal = [chess.Move.null()] * len(legal_moves)
+    idx = 0
+    for i in range(len(legal_moves)):
+        if legal_moves[i] and board_instance.is_capture(legal_moves[i]):
+            attacker = board_instance.piece_at(legal_moves[i].from_square)
+            defender = board_instance.piece_at(legal_moves[i].to_square)
+            if (
+                attacker
+                and defender
+                and PIECE_VALUES[defender.piece_type] * 10
+                >= PIECE_VALUES[attacker.piece_type]
+            ):
+                sortedLegal[idx] = legal_moves[i]
+                legal_moves[i] = chess.Move.null()
+                idx += 1
+
+    for i in range(len(legal_moves)):
+        if legal_moves[i]:
+            sortedLegal[idx] = legal_moves[i]
+            idx += 1
+
+    legal_moves = sortedLegal
+
     if board_instance.turn == chess.WHITE:
         best_score = float("-inf")
 
-        for legal_move in board_instance.generate_legal_moves():
+        for legal_move in legal_moves:
             board_instance.push(legal_move)
             node_score = alpha_beta(
                 board_instance,
@@ -79,7 +113,7 @@ def alpha_beta(
     else:
         best_score = float("inf")
 
-        for legal_move in board_instance.generate_legal_moves():
+        for legal_move in legal_moves:
             board_instance.push(legal_move)
             node_score = alpha_beta(
                 board_instance,
@@ -122,11 +156,37 @@ def alpha_beta_search(
     alpha = float("-inf")
     beta = float("inf")
 
+    idx = 0
+    sortedLegal = [chess.Move.null()] * len(legal_moves)
     if previousBest:
         for i in range(len(legal_moves)):
             if previousBest.uci() == legal_moves[i].uci():
-                legal_moves[0], legal_moves[i] = legal_moves[i], legal_moves[0]
+                sortedLegal[idx] = legal_moves[i]
+                legal_moves[i] = chess.Move.null()
+                idx += 1
+                # legal_moves[0], legal_moves[i] = legal_moves[i], legal_moves[0]
                 break
+
+    for i in range(len(legal_moves)):
+        if legal_moves[i] and board.is_capture(legal_moves[i]):
+            attacker = board.piece_at(legal_moves[i].from_square)
+            defender = board.piece_at(legal_moves[i].to_square)
+            if (
+                attacker
+                and defender
+                and PIECE_VALUES[defender.piece_type] * 10
+                >= PIECE_VALUES[attacker.piece_type]
+            ):
+                sortedLegal[idx] = legal_moves[i]
+                legal_moves[i] = chess.Move.null()
+                idx += 1
+
+    for i in range(len(legal_moves)):
+        if legal_moves[i]:
+            sortedLegal[idx] = legal_moves[i]
+            idx += 1
+
+    legal_moves = sortedLegal
 
     for move in legal_moves:
         board.push(move)
