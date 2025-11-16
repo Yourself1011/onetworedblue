@@ -3,11 +3,18 @@ from typing import Tuple, Callable
 import chess
 from chess import Board
 import torch
+from time import time
 
 from src.nnue import feedforwardIntermediate, load
 from src.parseevaluations import fen_to_tensor
 # from nnue import feedforwardIntermediate, load
 # from parseevaluations import fen_to_tensor
+
+
+# skips = 0
+# totalSteps = 0
+# nnCalls = 0
+# nnTime = 0
 
 
 def alpha_beta(
@@ -18,9 +25,15 @@ def alpha_beta(
     beta: float,
     evaluate_fn: Callable[[Board], float],
 ) -> float:
+    # global skips, totalSteps, nnCalls, nnTime
+    # totalSteps += 1
     if current_depth == 0:
-        return quiescence_search(board_instance, alpha, beta, evaluate_fn)
-    
+        # start = time()
+        # nnCalls += 1
+        result = quiescence_search(board_instance, alpha, beta, evaluate_fn)
+        # nnTime += time() - start
+        return result
+
     if board_instance.is_checkmate():
         return -10000.0 if board_instance.turn == chess.WHITE else 10000.0
 
@@ -45,6 +58,7 @@ def alpha_beta(
             alpha = max(alpha, best_score)
 
             if beta <= alpha:
+                # skips += 1
                 return best_score
 
         return best_score
@@ -61,6 +75,7 @@ def alpha_beta(
             beta = min(beta, best_score)
 
             if beta <= alpha:
+                # skips += 1
                 return best_score
 
         return best_score
@@ -106,61 +121,60 @@ def alpha_beta_search(
         ):
             break
 
+    # print(skips, nnCalls, nnTime, totalSteps)
     return best_move, best_score
 
 
 def quiescence_search(
-    board: Board,
-    alpha: float,
-    beta: float,
-    evaluate_fn: Callable[[Board], float]
+    board: Board, alpha: float, beta: float, evaluate_fn: Callable[[Board], float]
 ) -> float:
     stand_pat = evaluate_fn(board)
-    
+
     if board.turn == chess.WHITE:
         if stand_pat >= beta:
             return stand_pat
         if stand_pat > alpha:
             alpha = stand_pat
-        
+
         best_value = stand_pat
-        
+
         for move in board.generate_legal_moves():
             if board.is_capture(move):
                 board.push(move)
                 score_after_capture = quiescence_search(board, alpha, beta, evaluate_fn)
                 board.pop()
-                
+
                 if score_after_capture >= beta:
                     return score_after_capture
                 if score_after_capture > best_value:
                     best_value = score_after_capture
                 if score_after_capture > alpha:
                     alpha = score_after_capture
-        
+
         return best_value
     else:
         if stand_pat <= alpha:
             return stand_pat
         if stand_pat < beta:
             beta = stand_pat
-        
+
         best_value = stand_pat
-        
+
         for move in board.generate_legal_moves():
             if board.is_capture(move):
                 board.push(move)
                 score_after_capture = quiescence_search(board, alpha, beta, evaluate_fn)
                 board.pop()
-                
+
                 if score_after_capture <= alpha:
                     return score_after_capture
                 if score_after_capture < best_value:
                     best_value = score_after_capture
                 if score_after_capture < beta:
                     beta = score_after_capture
-        
+
         return best_value
+
 
 def simple_evaluation(board: Board) -> float:
     if board.is_checkmate():
