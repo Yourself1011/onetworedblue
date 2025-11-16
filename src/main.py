@@ -32,9 +32,10 @@ def test_func(ctx: GameContext):
 
     best_move, best_score = iterativeDeepening(
         ctx.board,
-        max_depth=4,
+        max_depth=7,
         evaluate_fn=nnueEvaluation,
-        timeLimit=ctx.timeLeft / 1000 / 40,
+        timeLimit=ctx.timeLeft / 1000 / 25,
+        softLimit=ctx.timeLeft / 1000 / 40,
     )
     return best_move
 

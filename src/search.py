@@ -231,6 +231,7 @@ def iterativeDeepening(
     max_depth: int,
     evaluate_fn: Callable[[Board], float],
     timeLimit: float,
+    softLimit: float,
 ) -> Tuple[chess.Move, float]:
     bestMove = chess.Move.null()
     bestScore = 0
@@ -242,11 +243,15 @@ def iterativeDeepening(
         )
 
         if time() - start > timeLimit:
-            print("depth", i, "t", time() - start)
+            print("depth", i - 1, "t", time() - start)
             break
 
         bestMove = move
         bestScore = score
+
+        if time() - start > softLimit:
+            print("depth", i, "t", time() - start)
+            break
 
     return bestMove, bestScore
 
